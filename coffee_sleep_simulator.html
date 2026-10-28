@@ -1,0 +1,992 @@
+// --- INITIALIZATION ---
+    window.onload = function() {
+      updateCalculations();
+      window.addEventListener('resize', drawChart);
+    };<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Caffeine & Sleep Architecture Lab</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            display: ['"Space Grotesk"', 'sans-serif'],
+          },
+          colors: {
+            coffee: {
+              50: '#fffbeedb',
+              100: '#fef3c7',
+              200: '#fde68a',
+              300: '#f59e0b',
+              400: '#d97706',
+              500: '#b45309',
+              600: '#92400e',
+              700: '#78350f',
+              800: '#451a03',
+              900: '#270e02',
+              950: '#140601',
+            },
+            sleep: {
+              50: '#f0f4ff',
+              100: '#e0e8ff',
+              200: '#c7d7fe',
+              300: '#a4bcfd',
+              400: '#818cf8',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#3730a3',
+              800: '#1e1b4b',
+              900: '#0f172a',
+              950: '#030712',
+            }
+          },
+          animation: {
+            'float': 'float 6s ease-in-out infinite',
+            'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
+            'steam': 'steam 3s linear infinite',
+          },
+          keyframes: {
+            float: {
+              '0%, 100%': { transform: 'translateY(0px)' },
+              '50%': { transform: 'translateY(-10px)' },
+            },
+            pulseGlow: {
+              '0%, 100%': { opacity: '0.4', filter: 'drop-shadow(0 0 15px rgba(245, 158, 11, 0.4))' },
+              '50%': { opacity: '0.8', filter: 'drop-shadow(0 0 25px rgba(245, 158, 11, 0.8))' },
+            },
+            steam: {
+              '0%': { transform: 'translateY(0) scaleX(1)', opacity: '0' },
+              '50%': { opacity: '0.6' },
+              '100%': { transform: 'translateY(-30px) scaleX(1.5)', opacity: '0' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(146, 64, 14, 0.5);
+      border-radius: 4px;
+    }
+    .sleep-mode ::-webkit-scrollbar-thumb {
+      background: rgba(99, 102, 241, 0.5);
+    }
+
+    /* Glassmorphism Classes */
+    .glass-card {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-card-coffee {
+      background: linear-gradient(135deg, rgba(69, 26, 3, 0.3) 0%, rgba(39, 14, 2, 0.5) 100%);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(245, 158, 11, 0.15);
+    }
+    .glass-card-sleep {
+      background: linear-gradient(135deg, rgba(30, 27, 75, 0.3) 0%, rgba(15, 23, 42, 0.6) 100%);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(129, 140, 248, 0.15);
+    }
+
+    /* Canvas styling */
+    canvas {
+      touch-action: none;
+    }
+
+    /* Range slider custom styling */
+    input[type=range] {
+      -webkit-appearance: none;
+      background: transparent;
+    }
+    input[type=range]:focus {
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 8px;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      height: 20px;
+      width: 20px;
+      border-radius: 50%;
+      background: #f59e0b;
+      cursor: pointer;
+      -webkit-appearance: none;
+      margin-top: -6px;
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+      transition: transform 0.1s ease;
+    }
+    .sleep-mode input[type=range]::-webkit-slider-thumb {
+      background: #818cf8;
+      box-shadow: 0 0 10px rgba(129, 140, 248, 0.5);
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+  </style>
+</head>
+<body class="bg-coffee-950 text-slate-100 min-h-screen font-sans transition-colors duration-700 relative overflow-x-hidden" id="app-body">
+
+  <!-- Dynamic Ambient Background Canvas -->
+  <canvas id="bg-canvas" class="fixed inset-0 pointer-events-none z-0 opacity-40"></canvas>
+
+  <!-- Ambient Glow Effects -->
+  <div id="ambient-glow" class="fixed top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-amber-600/10 rounded-full blur-[120px] pointer-events-none transition-all duration-700"></div>
+
+  <!-- Main Container -->
+  <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col min-h-screen">
+
+    <!-- HEADER / TOP NAV -->
+    <header class="flex flex-col sm:flex-row justify-between items-center gap-4 pb-6 border-b border-white/10 mb-8">
+      <div class="flex items-center gap-3">
+        <div id="brand-icon" class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center shadow-lg shadow-amber-900/30 transition-all duration-500">
+          <i data-lucide="coffee" class="w-6 h-6 text-coffee-950"></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold font-display tracking-tight flex items-center gap-2">
+            Brew & Bedtime <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-sans font-normal" id="mode-badge">Coffee Mode</span>
+          </h1>
+          <p class="text-xs text-slate-400">Pharmacokinetic Caffeine Half-Life & Sleep Architecture Lab</p>
+        </div>
+      </div>
+
+      <!-- Mode Toggle Switcher -->
+      <div class="flex items-center gap-2 bg-slate-900/80 p-1.5 rounded-2xl border border-white/10 shadow-inner">
+        <button id="btn-coffee-mode" onclick="setThemeMode('coffee')" class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300 bg-gradient-to-r from-amber-600 to-amber-500 text-slate-950 shadow-md">
+          <i data-lucide="coffee" class="w-4 h-4"></i>
+          Coffee Mode
+        </button>
+        <button id="btn-sleep-mode" onclick="setThemeMode('sleep')" class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300 text-slate-400 hover:text-slate-200">
+          <i data-lucide="moon" class="w-4 h-4"></i>
+          Sleep Mode
+        </button>
+      </div>
+    </header>
+
+    <!-- DASHBOARD MAIN GRID -->
+    <main class="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-grow">
+
+      <!-- LEFT COLUMN: INPUTS & CONTROLS (4 cols) -->
+      <section class="lg:col-span-4 flex flex-col gap-6">
+
+        <!-- Intake Logging Card -->
+        <div class="glass-card-coffee rounded-3xl p-6 transition-all duration-500 hover:border-white/20 shadow-xl" id="intake-card">
+          <div class="flex items-center justify-between mb-5">
+            <h2 class="text-lg font-bold font-display flex items-center gap-2 text-amber-200" id="card-title-intake">
+              <i data-lucide="plus-circle" class="w-5 h-5 text-amber-400"></i> Log Caffeine Intake
+            </h2>
+            <span class="text-xs text-slate-400">Half-life ≈ 5 Hours</span>
+          </div>
+
+          <!-- Quick Drink Selectors -->
+          <div class="grid grid-cols-3 gap-2.5 mb-5">
+            <button onclick="selectPreset('espresso', 80)" class="preset-btn group relative p-3 rounded-2xl bg-white/5 hover:bg-amber-500/15 border border-white/5 hover:border-amber-500/40 flex flex-col items-center justify-center gap-1 transition-all">
+              <i data-lucide="cup-soda" class="w-5 h-5 text-amber-400 group-hover:scale-110 transition-transform"></i>
+              <span class="text-xs font-semibold">Espresso</span>
+              <span class="text-[10px] text-slate-400">80 mg</span>
+            </button>
+            <button onclick="selectPreset('drip', 140)" class="preset-btn group relative p-3 rounded-2xl bg-white/5 hover:bg-amber-500/15 border border-white/5 hover:border-amber-500/40 flex flex-col items-center justify-center gap-1 transition-all">
+              <i data-lucide="coffee" class="w-5 h-5 text-amber-400 group-hover:scale-110 transition-transform"></i>
+              <span class="text-xs font-semibold">Drip Coffee</span>
+              <span class="text-[10px] text-slate-400">140 mg</span>
+            </button>
+            <button onclick="selectPreset('energy', 160)" class="preset-btn group relative p-3 rounded-2xl bg-white/5 hover:bg-amber-500/15 border border-white/5 hover:border-amber-500/40 flex flex-col items-center justify-center gap-1 transition-all">
+              <i data-lucide="zap" class="w-5 h-5 text-amber-400 group-hover:scale-110 transition-transform"></i>
+              <span class="text-xs font-semibold">Energy Drink</span>
+              <span class="text-[10px] text-slate-400">160 mg</span>
+            </button>
+          </div>
+
+          <!-- Slider: Amount (mg) -->
+          <div class="mb-5">
+            <div class="flex justify-between items-center mb-2">
+              <label class="text-xs font-semibold text-slate-300">Caffeine Dose</label>
+              <span class="text-sm font-bold font-display text-amber-400" id="dose-val-display">140 mg</span>
+            </div>
+            <input type="range" id="dose-slider" min="20" max="400" step="10" value="140" class="w-full" oninput="updateCalculations()">
+            <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+              <span>Light (30mg)</span>
+              <span>Moderate (150mg)</span>
+              <span>Heavy (300mg+)</span>
+            </div>
+          </div>
+
+          <!-- Time of Consumption -->
+          <div class="mb-5">
+            <div class="flex justify-between items-center mb-2">
+              <label class="text-xs font-semibold text-slate-300">Consumption Time</label>
+              <span class="text-sm font-bold font-display text-amber-400" id="time-val-display">02:00 PM</span>
+            </div>
+            <input type="range" id="time-slider" min="6" max="23" step="0.5" value="14" class="w-full" oninput="updateCalculations()">
+            <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+              <span>6:00 AM</span>
+              <span>2:00 PM</span>
+              <span>11:00 PM</span>
+            </div>
+          </div>
+
+          <!-- Metabolism Speed Modifier -->
+          <div class="mb-2">
+            <label class="text-xs font-semibold text-slate-300 mb-2 block">Metabolic Rate (CYP1A2 Enzyme)</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button onclick="setMetabolism(6.5)" id="meta-slow" class="meta-btn text-xs py-2 px-2 rounded-xl bg-white/5 border border-white/5 hover:border-white/20 transition-all">Slow (6.5h)</button>
+              <button onclick="setMetabolism(5.0)" id="meta-avg" class="meta-btn text-xs py-2 px-2 rounded-xl bg-amber-500/20 border border-amber-500/50 text-amber-300 font-bold transition-all">Avg (5.0h)</button>
+              <button onclick="setMetabolism(3.5)" id="meta-fast" class="meta-btn text-xs py-2 px-2 rounded-xl bg-white/5 border border-white/5 hover:border-white/20 transition-all">Fast (3.5h)</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Target Bedtime Slider Card -->
+        <div class="glass-card rounded-3xl p-6 shadow-xl">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-bold font-display flex items-center gap-2 text-indigo-300">
+              <i data-lucide="clock" class="w-4 h-4 text-indigo-400"></i> Desired Bedtime
+            </h2>
+            <span class="text-sm font-bold font-display text-indigo-300" id="bedtime-val-display">11:00 PM</span>
+          </div>
+          <input type="range" id="bedtime-slider" min="20" max="28" step="0.5" value="23" class="w-full" oninput="updateCalculations()">
+          <p class="text-[11px] text-slate-400 mt-3 leading-relaxed">
+            <i data-lucide="info" class="w-3.5 h-3.5 inline text-slate-400 mr-1"></i>
+            For optimal REM/Deep sleep, scientists recommend caffeine levels below <strong>20-30 mg</strong> at bedtime.
+          </p>
+        </div>
+
+        <!-- Key Metrics Summary Box -->
+        <div class="grid grid-cols-2 gap-4">
+          <div class="glass-card rounded-2xl p-4 flex flex-col justify-between">
+            <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Level at Bedtime</span>
+            <div class="mt-2">
+              <span class="text-2xl font-black font-display" id="metric-bedtime-mg">0 mg</span>
+              <p class="text-[10px] text-emerald-400 mt-1 flex items-center gap-1" id="metric-bedtime-status">
+                <i data-lucide="check-circle-2" class="w-3 h-3"></i> Safe Threshold
+              </p>
+            </div>
+          </div>
+
+          <div class="glass-card rounded-2xl p-4 flex flex-col justify-between">
+            <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Est. Sleep Latency</span>
+            <div class="mt-2">
+              <span class="text-2xl font-black font-display text-amber-400" id="metric-latency">+12 min</span>
+              <p class="text-[10px] text-slate-400 mt-1">Delay in falling asleep</p>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- CENTER/RIGHT COLUMN: SIMULATOR GRAPH & TOOLS (8 cols) -->
+      <section class="lg:col-span-8 flex flex-col gap-6">
+
+        <!-- SIMULATOR CANVAS CARD -->
+        <div class="glass-card rounded-3xl p-6 relative flex flex-col justify-between shadow-2xl overflow-hidden min-h-[380px]">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <div>
+              <h2 class="text-lg font-bold font-display flex items-center gap-2">
+                <i data-lucide="activity" class="w-5 h-5 text-amber-400" id="graph-icon"></i>
+                24-Hour Plasma Caffeine Decay
+              </h2>
+              <p class="text-xs text-slate-400">Simulated blood plasma concentration over 24 hours</p>
+            </div>
+
+            <!-- Dynamic Ideal Cutoff Badge -->
+            <div class="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl text-xs text-amber-300 font-medium self-start sm:self-auto">
+              <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-amber-400"></i>
+              <span>Last Cup Cutoff: <strong id="cutoff-time-display">02:30 PM</strong></span>
+            </div>
+          </div>
+
+          <!-- Canvas Graph Area -->
+          <div class="relative w-full h-[260px] sm:h-[300px] my-2">
+            <canvas id="caffeine-chart" class="w-full h-full rounded-xl"></canvas>
+            <!-- Floating Hover Tooltip -->
+            <div id="chart-tooltip" class="absolute hidden bg-slate-900/95 border border-white/20 p-2.5 rounded-xl text-xs shadow-xl pointer-events-none z-30 transition-opacity">
+              <div class="font-bold text-amber-400 mb-0.5" id="tooltip-time">10:00 PM</div>
+              <div class="text-slate-200">Caffeine: <span class="font-semibold" id="tooltip-mg">45 mg</span></div>
+              <div class="text-[10px] text-slate-400 mt-0.5" id="tooltip-desc">Sleep Impact: Moderate</div>
+            </div>
+          </div>
+
+          <!-- Graph Legend -->
+          <div class="flex flex-wrap items-center justify-between text-xs text-slate-400 pt-3 border-t border-white/5 gap-2">
+            <div class="flex items-center gap-4">
+              <span class="flex items-center gap-1.5"><span class="w-3 h-1 bg-amber-400 rounded-full inline-block"></span> Concentration Curve</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-1 bg-indigo-400 rounded-full inline-block"></span> Target Bedtime</span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 border-b border-dashed border-red-400 inline-block"></span> Sleep Disturbance Threshold (30mg)</span>
+            </div>
+            <span class="text-[11px] text-slate-500">Hover graph for details</span>
+          </div>
+        </div>
+
+        <!-- TWO COLUMN INTERACTIVE ROW: NAPUCCINO & FUNCTIONAL METER -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          <!-- NAPUCCINO (CAFFEINE NAP) TIMER CARD -->
+          <div class="glass-card rounded-3xl p-6 flex flex-col justify-between relative overflow-hidden">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-400">
+                  <i data-lucide="timer" class="w-4 h-4"></i>
+                </div>
+                <div>
+                  <h3 class="font-bold font-display text-sm">Napuccino Power-Nap</h3>
+                  <p class="text-[11px] text-slate-400">Drink coffee, nap 20 mins, awake as caffeine hits</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Timer Circle Display -->
+            <div class="my-4 flex flex-col items-center justify-center relative">
+              <svg class="w-36 h-36 transform -rotate-90">
+                <circle cx="72" cy="72" r="62" stroke="currentColor" stroke-width="8" class="text-white/5" fill="transparent" />
+                <circle id="timer-progress" cx="72" cy="72" r="62" stroke="currentColor" stroke-width="8" class="text-amber-500 transition-all duration-300" stroke-dasharray="389" stroke-dashoffset="0" stroke-linecap="round" fill="transparent" />
+              </svg>
+              <div class="absolute flex flex-col items-center">
+                <span class="text-3xl font-black font-display tracking-tight" id="timer-text">20:00</span>
+                <span class="text-[10px] uppercase font-semibold tracking-wider text-slate-400" id="timer-state-label">Ready</span>
+              </div>
+            </div>
+
+            <!-- Timer Controls -->
+            <div class="flex items-center justify-center gap-2">
+              <button id="btn-start-nap" onclick="toggleNapTimer()" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-amber-900/20 hover:scale-[1.02] active:scale-95 transition-all">
+                <i data-lucide="play" class="w-4 h-4 fill-current" id="timer-icon"></i> <span id="timer-btn-text">Start Coffee Nap</span>
+              </button>
+              <button onclick="resetNapTimer()" class="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 border border-white/5 transition-all">
+                <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- FUNCTIONAL METER & VIBE DIAGNOSTIC CARD -->
+          <div class="glass-card rounded-3xl p-6 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="font-bold font-display text-sm flex items-center gap-2">
+                  <i data-lucide="gauge" class="w-4 h-4 text-amber-400"></i> "Am I Functional Yet?" Meter
+                </h3>
+                <span class="text-xs px-2 py-0.5 rounded-full bg-white/10 text-slate-300" id="vibe-score-tag">68%</span>
+              </div>
+              <p class="text-xs text-slate-400 mb-4">Estimated cognitive alertness based on current time, intake decay, and circadian rhythm.</p>
+            </div>
+
+            <!-- Progress Gauge Bar -->
+            <div class="space-y-3 my-2">
+              <div class="w-full h-4 bg-slate-800/80 rounded-full overflow-hidden p-0.5 border border-white/5 relative">
+                <div id="alertness-bar" class="h-full rounded-full bg-gradient-to-r from-amber-600 via-amber-400 to-emerald-400 transition-all duration-700" style="width: 68%;"></div>
+              </div>
+              <div class="flex justify-between text-[10px] text-slate-500 font-semibold">
+                <span>Zombie Mode</span>
+                <span>Optimized Focus</span>
+                <span>Wired / Overstimulated</span>
+              </div>
+            </div>
+
+            <!-- Status Box -->
+            <div class="p-3 rounded-2xl bg-white/5 border border-white/5 mt-3 flex items-start gap-3">
+              <div class="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0" id="status-icon-box">
+                <i data-lucide="zap" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h4 class="text-xs font-bold text-slate-200" id="status-heading">Sweet Spot Cognitive Zone</h4>
+                <p class="text-[11px] text-slate-400 mt-0.5 leading-snug" id="status-desc">Caffeine is active and improving alertness without overwhelming heart rate or creating sleep latency risk.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- CIRCADIAN & SLEEP OPTIMIZATION TIPS ACCORDION -->
+        <div class="glass-card rounded-3xl p-6">
+          <h3 class="text-base font-bold font-display mb-4 flex items-center gap-2 text-slate-200">
+            <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i> Science-Backed Caffeine Rules for Better Sleep
+          </h3>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-amber-500/30 transition-all">
+              <div class="text-amber-400 font-bold text-xs uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                <i data-lucide="sun" class="w-3.5 h-3.5"></i> 90-Minute Delay Rule
+              </div>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Delay morning coffee by 90-120 mins after waking. Allows natural cortisol peak to clear adenosine without early afternoon crashes.
+              </p>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-amber-500/30 transition-all">
+              <div class="text-indigo-400 font-bold text-xs uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                <i data-lucide="moon" class="w-3.5 h-3.5"></i> The 10-Hour Hard Stop
+              </div>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Stop caffeine 10 hours before bed. If bedtime is 11:00 PM, your final sip should be no later than 1:00 PM - 2:00 PM.
+              </p>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-amber-500/30 transition-all">
+              <div class="text-emerald-400 font-bold text-xs uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Protect Slow-Wave Sleep
+              </div>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Even if you fall asleep fine with caffeine in your system, high levels reduce restorative deep Delta sleep by up to 20%.
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="mt-12 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-4">
+      <p>© Brew & Bedtime Lab • Built for coffee lovers who care about recovery.</p>
+      <div class="flex items-center gap-4">
+        <span class="flex items-center gap-1"><i data-lucide="coffee" class="w-3.5 h-3.5"></i> Caffeine Pharmacokinetics</span>
+        <span>•</span>
+        <span class="flex items-center gap-1"><i data-lucide="moon" class="w-3.5 h-3.5"></i> Sleep Architecture</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    // --- APP STATE ---
+    const state = {
+      theme: 'coffee', // 'coffee' | 'sleep'
+      doseMg: 140,
+      intakeHour: 14.0, // 2:00 PM
+      halfLifeHours: 5.0, // CYP1A2 metabolic speed
+      targetBedtimeHour: 23.0, // 11:00 PM
+      
+      // Nap Timer State
+      napDuration: 20 * 60, // 20 mins in seconds
+      napRemaining: 20 * 60,
+      napInterval: null,
+      napIsRunning: false,
+    };
+
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    // --- CANVAS BACKGROUND ANIMATION ---
+    const bgCanvas = document.getElementById('bg-canvas');
+    const bgCtx = bgCanvas.getContext('2d');
+    let particles = [];
+
+    function resizeBgCanvas() {
+      bgCanvas.width = window.innerWidth;
+      bgCanvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeBgCanvas);
+    resizeBgCanvas();
+
+    class Particle {
+      constructor() {
+        this.reset();
+      }
+      reset() {
+        this.x = Math.random() * bgCanvas.width;
+        this.y = bgCanvas.height + Math.random() * 100;
+        this.size = Math.random() * 3 + 1;
+        this.speedY = Math.random() * 0.8 + 0.2;
+        this.speedX = (Math.random() - 0.5) * 0.5;
+        this.opacity = Math.random() * 0.5 + 0.1;
+      }
+      update() {
+        this.y -= this.speedY;
+        this.x += this.speedX;
+        if (this.y < -10) this.reset();
+      }
+      draw() {
+        bgCtx.fillStyle = state.theme === 'coffee' 
+          ? `rgba(245, 158, 11, ${this.opacity})` 
+          : `rgba(129, 140, 248, ${this.opacity})`;
+        bgCtx.beginPath();
+        bgCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        bgCtx.fill();
+      }
+    }
+
+    for (let i = 0; i < 40; i++) {
+      particles.push(new Particle());
+    }
+
+    function animateBg() {
+      bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+      particles.forEach(p => {
+        p.update();
+        p.draw();
+      });
+      requestAnimationFrame(animateBg);
+    }
+    animateBg();
+
+    // --- THEME SWITCHER LOGIC ---
+    function setThemeMode(mode) {
+      state.theme = mode;
+      const body = document.getElementById('app-body');
+      const intakeCard = document.getElementById('intake-card');
+      const modeBadge = document.getElementById('mode-badge');
+      const btnCoffee = document.getElementById('btn-coffee-mode');
+      const btnSleep = document.getElementById('btn-sleep-mode');
+      const ambientGlow = document.getElementById('ambient-glow');
+      const brandIcon = document.getElementById('brand-icon');
+
+      if (mode === 'coffee') {
+        body.className = 'bg-coffee-950 text-slate-100 min-h-screen font-sans transition-colors duration-700 relative overflow-x-hidden';
+        body.classList.remove('sleep-mode');
+        
+        intakeCard.className = 'glass-card-coffee rounded-3xl p-6 transition-all duration-500 hover:border-white/20 shadow-xl';
+        
+        modeBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-sans font-normal';
+        modeBadge.innerText = 'Coffee Mode';
+
+        btnCoffee.className = 'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300 bg-gradient-to-r from-amber-600 to-amber-500 text-slate-950 shadow-md';
+        btnSleep.className = 'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300 text-slate-400 hover:text-slate-200';
+
+        ambientGlow.className = 'fixed top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-amber-600/10 rounded-full blur-[120px] pointer-events-none transition-all duration-700';
+        
+        brandIcon.className = 'w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center shadow-lg shadow-amber-900/30 transition-all duration-500';
+        brandIcon.innerHTML = `<i data-lucide="coffee" class="w-6 h-6 text-coffee-950"></i>`;
+      } else {
+        body.className = 'bg-sleep-950 text-slate-100 min-h-screen font-sans transition-colors duration-700 relative overflow-x-hidden sleep-mode';
+        
+        intakeCard.className = 'glass-card-sleep rounded-3xl p-6 transition-all duration-500 hover:border-white/20 shadow-xl';
+
+        modeBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-sans font-normal';
+        modeBadge.innerText = 'Sleep Mode';
+
+        btnSleep.className = 'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md';
+        btnCoffee.className = 'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300 text-slate-400 hover:text-slate-200';
+
+        ambientGlow.className = 'fixed top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-600/15 rounded-full blur-[120px] pointer-events-none transition-all duration-700';
+
+        brandIcon.className = 'w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-400 flex items-center justify-center shadow-lg shadow-indigo-900/30 transition-all duration-500';
+        brandIcon.innerHTML = `<i data-lucide="moon" class="w-6 h-6 text-slate-950"></i>`;
+      }
+      
+      lucide.createIcons();
+      drawChart();
+    }
+
+    // --- CONTROLS & CALCULATIONS ---
+    function formatTime(hourFloat) {
+      let h = Math.floor(hourFloat) % 24;
+      let m = Math.round((hourFloat % 1) * 60);
+      if (m === 60) { h = (h + 1) % 24; m = 0; }
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      let displayH = h % 12;
+      if (displayH === 0) displayH = 12;
+      const displayM = m < 10 ? '0' + m : m;
+      return `${displayH}:${displayM} ${ampm}`;
+    }
+
+    function selectPreset(type, mg) {
+      document.getElementById('dose-slider').value = mg;
+      updateCalculations();
+    }
+
+    function setMetabolism(halfLife) {
+      state.halfLifeHours = halfLife;
+      
+      document.getElementById('meta-slow').className = 'meta-btn text-xs py-2 px-2 rounded-xl bg-white/5 border border-white/5 hover:border-white/20 transition-all';
+      document.getElementById('meta-avg').className = 'meta-btn text-xs py-2 px-2 rounded-xl bg-white/5 border border-white/5 hover:border-white/20 transition-all';
+      document.getElementById('meta-fast').className = 'meta-btn text-xs py-2 px-2 rounded-xl bg-white/5 border border-white/5 hover:border-white/20 transition-all';
+
+      if (halfLife === 6.5) document.getElementById('meta-slow').className = 'meta-btn text-xs py-2 px-2 rounded-xl bg-amber-500/20 border border-amber-500/50 text-amber-300 font-bold transition-all';
+      if (halfLife === 5.0) document.getElementById('meta-avg').className = 'meta-btn text-xs py-2 px-2 rounded-xl bg-amber-500/20 border border-amber-500/50 text-amber-300 font-bold transition-all';
+      if (halfLife === 3.5) document.getElementById('meta-fast').className = 'meta-btn text-xs py-2 px-2 rounded-xl bg-amber-500/20 border border-amber-500/50 text-amber-300 font-bold transition-all';
+
+      updateCalculations();
+    }
+
+    function calculateCaffeineAtHour(targetHour) {
+      if (targetHour < state.intakeHour) {
+        // Handle next day wraps if applicable
+        targetHour += 24;
+      }
+      const elapsedHours = targetHour - state.intakeHour;
+      if (elapsedHours < 0) return 0;
+      
+      // Absorption phase ~ 30 mins to peak
+      let mg = 0;
+      if (elapsedHours < 0.5) {
+        mg = state.doseMg * (elapsedHours / 0.5);
+      } else {
+        const decayTime = elapsedHours - 0.5;
+        mg = state.doseMg * Math.pow(0.5, decayTime / state.halfLifeHours);
+      }
+      return mg;
+    }
+
+    function updateCalculations() {
+      state.doseMg = parseFloat(document.getElementById('dose-slider').value);
+      state.intakeHour = parseFloat(document.getElementById('time-slider').value);
+      state.targetBedtimeHour = parseFloat(document.getElementById('bedtime-slider').value);
+
+      document.getElementById('dose-val-display').innerText = `${state.doseMg} mg`;
+      document.getElementById('time-val-display').innerText = formatTime(state.intakeHour);
+      document.getElementById('bedtime-val-display').innerText = formatTime(state.targetBedtimeHour);
+
+      // Bedtime mg calculation
+      const bedtimeMg = Math.round(calculateCaffeineAtHour(state.targetBedtimeHour));
+      document.getElementById('metric-bedtime-mg').innerText = `${bedtimeMg} mg`;
+
+      const statusElem = document.getElementById('metric-bedtime-status');
+      if (bedtimeMg <= 30) {
+        statusElem.className = 'text-[10px] text-emerald-400 mt-1 flex items-center gap-1';
+        statusElem.innerHTML = `<i data-lucide="check-circle-2" class="w-3 h-3"></i> Safe Bedtime Level`;
+      } else if (bedtimeMg <= 60) {
+        statusElem.className = 'text-[10px] text-amber-400 mt-1 flex items-center gap-1';
+        statusElem.innerHTML = `<i data-lucide="alert-circle" class="w-3 h-3"></i> Mild Sleep Interference`;
+      } else {
+        statusElem.className = 'text-[10px] text-rose-400 mt-1 flex items-center gap-1';
+        statusElem.innerHTML = `<i data-lucide="alert-triangle" class="w-3 h-3"></i> High Sleep Latency Risk`;
+      }
+
+      // Latency estimation (approx 0.4 mins per mg remaining above 15mg)
+      const latencyMinutes = bedtimeMg > 15 ? Math.round((bedtimeMg - 15) * 0.4) : 0;
+      document.getElementById('metric-latency').innerText = `+${latencyMinutes} min`;
+
+      // Calculate Cutoff Time for Target Bedtime (Time when level reaches 25mg)
+      // 25 = dose * (0.5)^(t/halfLife) => t = halfLife * log2(dose/25)
+      let cutoffHoursBefore = 0;
+      if (state.doseMg > 25) {
+        cutoffHoursBefore = state.halfLifeHours * (Math.log2(state.doseMg / 25)) + 0.5;
+      }
+      let cutoffHour = state.targetBedtimeHour - cutoffHoursBefore;
+      if (cutoffHour < 0) cutoffHour += 24;
+      document.getElementById('cutoff-time-display').innerText = formatTime(cutoffHour);
+
+      // Update Functional Meter Score
+      updateFunctionalMeter();
+
+      lucide.createIcons();
+      drawChart();
+    }
+
+    function updateFunctionalMeter() {
+      // Simple circadian alertness model peak around 10am-12pm and 4pm-6pm
+      const currentHour = new Date().getHours() + new Date().getMinutes() / 60;
+      const activeCaffeine = calculateCaffeineAtHour(currentHour);
+
+      let score = Math.round((activeCaffeine / 200) * 50 + 40);
+      if (score > 98) score = 98;
+      if (score < 20) score = 20;
+
+      document.getElementById('vibe-score-tag').innerText = `${score}%`;
+      document.getElementById('alertness-bar').style.width = `${score}%`;
+
+      const heading = document.getElementById('status-heading');
+      const desc = document.getElementById('status-desc');
+      const iconBox = document.getElementById('status-icon-box');
+
+      if (score < 40) {
+        heading.innerText = "Low Energy / Adenosine Buildup";
+        desc.innerText = "Caffeine levels are low. You may feel sleep inertia or a natural afternoon slump.";
+        iconBox.innerHTML = `<i data-lucide="coffee" class="w-4 h-4 text-slate-400"></i>`;
+      } else if (score <= 75) {
+        heading.innerText = "Sweet Spot Cognitive Zone";
+        desc.innerText = "Caffeine is active and improving alertness without overwhelming heart rate or sleep quality.";
+        iconBox.innerHTML = `<i data-lucide="zap" class="w-4 h-4 text-amber-400"></i>`;
+      } else {
+        heading.innerText = "Overstimulated / Wired State";
+        desc.innerText = "High plasma caffeine level. Focus may turn into anxiety or restlessness. Hydrate with water!";
+        iconBox.innerHTML = `<i data-lucide="flame" class="w-4 h-4 text-rose-400"></i>`;
+      }
+      lucide.createIcons();
+    }
+
+    // --- CANVAS CHART RENDERING ---
+    const chartCanvas = document.getElementById('caffeine-chart');
+    const chartCtx = chartCanvas.getContext('2d');
+    const chartTooltip = document.getElementById('chart-tooltip');
+
+    function drawChart() {
+      const rect = chartCanvas.getBoundingClientRect();
+      chartCanvas.width = rect.width * window.devicePixelRatio;
+      chartCanvas.height = rect.height * window.devicePixelRatio;
+      
+      const width = chartCanvas.width;
+      const height = chartCanvas.height;
+      const ctx = chartCtx;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+      const displayWidth = rect.width;
+      const displayHeight = rect.height;
+
+      ctx.clearRect(0, 0, displayWidth, displayHeight);
+
+      const paddingLeft = 40;
+      const paddingBottom = 30;
+      const paddingTop = 20;
+      const paddingRight = 20;
+
+      const graphWidth = displayWidth - paddingLeft - paddingRight;
+      const graphHeight = displayHeight - paddingTop - paddingBottom;
+
+      // Time range: 24 hours starting from 6:00 AM (Hour 6 to Hour 30)
+      const startHour = 6;
+      const endHour = 30; // 6 AM next day
+      const maxMg = Math.max(state.doseMg * 1.1, 200);
+
+      // Grid Lines & Labels
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+      ctx.lineWidth = 1;
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '10px "Plus Jakarta Sans"';
+
+      // Horizontal Grid (Y-Axis)
+      const ySteps = 4;
+      for (let i = 0; i <= ySteps; i++) {
+        const mgVal = Math.round((maxMg / ySteps) * i);
+        const y = displayHeight - paddingBottom - (i / ySteps) * graphHeight;
+        
+        ctx.beginPath();
+        ctx.moveTo(paddingLeft, y);
+        ctx.lineTo(displayWidth - paddingRight, y);
+        ctx.stroke();
+
+        ctx.fillText(`${mgVal}mg`, 5, y + 3);
+      }
+
+      // Vertical Grid (X-Axis: Hours)
+      const xSteps = 6; // Every 4 hours
+      for (let i = 0; i <= xSteps; i++) {
+        const hourVal = startHour + (i * 4);
+        const x = paddingLeft + (i / xSteps) * graphWidth;
+
+        ctx.beginPath();
+        ctx.moveTo(x, paddingTop);
+        ctx.lineTo(x, displayHeight - paddingBottom);
+        ctx.stroke();
+
+        ctx.fillText(formatTime(hourVal), x - 18, displayHeight - 10);
+      }
+
+      // Safe Bedtime Threshold Line (30 mg)
+      const thresholdY = displayHeight - paddingBottom - (30 / maxMg) * graphHeight;
+      ctx.beginPath();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = '#f87171';
+      ctx.lineWidth = 1.5;
+      ctx.moveTo(paddingLeft, thresholdY);
+      ctx.lineTo(displayWidth - paddingRight, thresholdY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Bedtime Vertical Highlight Line
+      let bedtimeHourNormalized = state.targetBedtimeHour;
+      if (bedtimeHourNormalized < startHour) bedtimeHourNormalized += 24;
+      const bedtimeX = paddingLeft + ((bedtimeHourNormalized - startHour) / (endHour - startHour)) * graphWidth;
+
+      ctx.beginPath();
+      ctx.strokeStyle = '#818cf8';
+      ctx.lineWidth = 2;
+      ctx.moveTo(bedtimeX, paddingTop);
+      ctx.lineTo(bedtimeX, displayHeight - paddingBottom);
+      ctx.stroke();
+
+      // Caffeine Concentration Curve
+      ctx.beginPath();
+      let firstPoint = true;
+      const points = [];
+
+      for (let step = 0; step <= 100; step++) {
+        const h = startHour + (step / 100) * (endHour - startHour);
+        const mg = calculateCaffeineAtHour(h);
+        const x = paddingLeft + (step / 100) * graphWidth;
+        const y = displayHeight - paddingBottom - (mg / maxMg) * graphHeight;
+
+        points.push({ x, y, h, mg });
+
+        if (firstPoint) {
+          ctx.moveTo(x, y);
+          firstPoint = false;
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+
+      // Fill Gradient under curve
+      const gradient = ctx.createLinearGradient(0, paddingTop, 0, displayHeight - paddingBottom);
+      if (state.theme === 'coffee') {
+        gradient.addColorStop(0, 'rgba(245, 158, 11, 0.4)');
+        gradient.addColorStop(1, 'rgba(245, 158, 11, 0.0)');
+        ctx.strokeStyle = '#f59e0b';
+      } else {
+        gradient.addColorStop(0, 'rgba(129, 140, 248, 0.4)');
+        gradient.addColorStop(1, 'rgba(129, 140, 248, 0.0)');
+        ctx.strokeStyle = '#818cf8';
+      }
+
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Complete path for fill
+      ctx.lineTo(paddingLeft + graphWidth, displayHeight - paddingBottom);
+      ctx.lineTo(paddingLeft, displayHeight - paddingBottom);
+      ctx.closePath();
+      ctx.fillStyle = gradient;
+      ctx.fill();
+
+      // Store points for hover interactions
+      chartCanvas.chartPoints = points;
+    }
+
+    // Chart Mouse Interaction
+    chartCanvas.addEventListener('mousemove', (e) => {
+      const rect = chartCanvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const points = chartCanvas.chartPoints;
+
+      if (!points) return;
+
+      // Find closest point
+      const closest = points.reduce((prev, curr) => {
+        return Math.abs(curr.x - mouseX) < Math.abs(prev.x - mouseX) ? curr : prev;
+      });
+
+      if (closest && mouseX >= 40 && mouseX <= rect.width - 20) {
+        chartTooltip.style.display = 'block';
+        chartTooltip.style.left = `${closest.x - 50}px`;
+        chartTooltip.style.top = `${closest.y - 65}px`;
+
+        document.getElementById('tooltip-time').innerText = formatTime(closest.h);
+        document.getElementById('tooltip-mg').innerText = `${Math.round(closest.mg)} mg`;
+
+        const desc = document.getElementById('tooltip-desc');
+        if (closest.mg > 60) {
+          desc.innerText = 'High Sleep Latency Impact';
+          desc.className = 'text-[10px] text-rose-400 mt-0.5 font-semibold';
+        } else if (closest.mg > 30) {
+          desc.innerText = 'Moderate Deep Sleep Interference';
+          desc.className = 'text-[10px] text-amber-400 mt-0.5 font-semibold';
+        } else {
+          desc.innerText = 'Optimal Sleep Threshold Zone';
+          desc.className = 'text-[10px] text-emerald-400 mt-0.5 font-semibold';
+        }
+      } else {
+        chartTooltip.style.display = 'none';
+      }
+    });
+
+    chartCanvas.addEventListener('mouseleave', () => {
+      chartTooltip.style.display = 'none';
+    });
+
+    // --- NAPUCCINO (20-MIN COFFEE NAP) TIMER ---
+    function toggleNapTimer() {
+      if (state.napIsRunning) {
+        pauseNapTimer();
+      } else {
+        startNapTimer();
+      }
+    }
+
+    function startNapTimer() {
+      state.napIsRunning = true;
+      document.getElementById('timer-btn-text').innerText = 'Pause Nap';
+      document.getElementById('timer-icon').setAttribute('data-lucide', 'pause');
+      document.getElementById('timer-state-label').innerText = 'Napping...';
+      document.getElementById('timer-state-label').className = 'text-[10px] uppercase font-semibold tracking-wider text-amber-400 animate-pulse';
+
+      state.napInterval = setInterval(() => {
+        if (state.napRemaining > 0) {
+          state.napRemaining--;
+          updateTimerDisplay();
+        } else {
+          finishNapTimer();
+        }
+      }, 1000);
+
+      lucide.createIcons();
+    }
+
+    function pauseNapTimer() {
+      state.napIsRunning = false;
+      clearInterval(state.napInterval);
+      document.getElementById('timer-btn-text').innerText = 'Resume Nap';
+      document.getElementById('timer-icon').setAttribute('data-lucide', 'play');
+      document.getElementById('timer-state-label').innerText = 'Paused';
+      document.getElementById('timer-state-label').className = 'text-[10px] uppercase font-semibold tracking-wider text-slate-400';
+      lucide.createIcons();
+    }
+
+    function resetNapTimer() {
+      pauseNapTimer();
+      state.napRemaining = state.napDuration;
+      document.getElementById('timer-btn-text').innerText = 'Start Coffee Nap';
+      document.getElementById('timer-state-label').innerText = 'Ready';
+      updateTimerDisplay();
+    }
+
+    function updateTimerDisplay() {
+      const mins = Math.floor(state.napRemaining / 60);
+      const secs = state.napRemaining % 60;
+      const formatted = `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+      document.getElementById('timer-text').innerText = formatted;
+
+      // Progress Ring SVG
+      const totalDash = 389; // 2 * PI * 62
+      const progress = state.napRemaining / state.napDuration;
+      const offset = totalDash * (1 - progress);
+      document.getElementById('timer-progress').style.strokeDashoffset = offset;
+    }
+
+    function finishNapTimer() {
+      pauseNapTimer();
+      document.getElementById('timer-text').innerText = '00:00';
+      document.getElementById('timer-state-label').innerText = 'Wake Up! Caffeine Active';
+      document.getElementById('timer-state-label').className = 'text-[10px] uppercase font-bold tracking-wider text-emerald-400';
+
+      // Audio Alarm Beep (Web Audio API)
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 1.2);
+      } catch (e) {
+        console.log('Audio playback prevented');
+      }
+    }
+  </script>
+</body>
+</html>
